@@ -11,8 +11,15 @@ listener.BeginAcceptTcpClient(OnAcceptConnection, listener);
 
 Console.WriteLine("Mini SMTP Server is ready");
 
-Console.ReadLine();
-Console.WriteLine("Press ENTER for quit");
+var quit = new ManualResetEvent(false);
+
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    quit.Set();
+};
+
+quit.WaitOne();
 
 static void OnAcceptConnection(IAsyncResult asyn)
 {
