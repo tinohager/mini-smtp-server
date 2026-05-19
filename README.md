@@ -127,17 +127,35 @@ The benchmark results demonstrate that most gains came from cumulative low-level
 
 ## Testing
 
+Each server version can be tested independently by passing the version number as a runtime argument.  
+This allows direct A/B comparison of architectural changes, performance improvements, and memory behavior across all iterations.
+
+All images are published under a unified container registry tag, where the version number selects the implementation (V1 → V12).
+
+### Run a specific version
+
 ```bash
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 1
 
+# V1 - Baseline (StreamReader / async-per-connection)
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 1
+
+# V5 - Reactor model (Socket.Select event loop)
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 5
 
+# V6 - Reactor + pooling + reduced allocations
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 6
 
+# V9 - Task-based async I/O (NetworkStream abstraction)
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 9
 
+# V10 - Manual zero-allocation parsing (state machine)
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 10
+
+# V11 - High-performance sockets + UTF-8 literals
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 11
+
+# V12 - System.IO.Pipelines (zero-copy + batching)
 docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 12
 ```
 
