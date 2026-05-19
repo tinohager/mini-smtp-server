@@ -21,6 +21,8 @@ Console.CancelKeyPress += (_, e) =>
 
 quit.WaitOne();
 
+Console.WriteLine("Mini SMTP Server stopped");
+
 static void OnAcceptConnection(IAsyncResult asyn)
 {
     if (asyn.AsyncState is not TcpListener listener)
