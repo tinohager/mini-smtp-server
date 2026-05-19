@@ -1,10 +1,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY *.csproj ./
+COPY src/ ./src/
+
+WORKDIR /src/MiniSmtpServer
 RUN dotnet restore
 
-COPY . ./
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
