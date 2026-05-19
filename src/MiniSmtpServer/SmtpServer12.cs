@@ -8,7 +8,7 @@ public static class SmtpServer12
     private static Socket _listener = null!;
     private static volatile bool _running;
 
-    // Statische Antworten fix im Speicher hinterlegt
+    // Static pre-allocated responses kept in memory (Avoids any string/byte allocations in the hot path)
     private static readonly byte[] RespReady = "220 localhost ESMTP Service Ready\r\n"u8.ToArray();
     private static readonly byte[] RespEhlo = "250-localhost\r\n250 PIPELINING\r\n250 OK\r\n"u8.ToArray();
     private static readonly byte[] RespOk = "250 OK\r\n"u8.ToArray();
@@ -50,6 +50,7 @@ public static class SmtpServer12
 
     private static async Task HandleClientPipelineAsync(Socket socket)
     {
+        // Automatically utilizes the highly efficient shared memory pool of .NET
         var pipe = MemoryPool<byte>.Shared;
         using var stream = new NetworkStream(socket, ownsSocket: true);
         var reader = PipeReader.Create(stream, new StreamPipeReaderOptions(pipe));
@@ -57,7 +58,7 @@ public static class SmtpServer12
 
         try
         {
-            // Initiales Greeting in den Buffer schreiben und sofort ins Netzwerk flashen
+            // Write initial greeting to the buffer and flush immediately to the network
             writer.Write(RespReady);
             await writer.FlushAsync().ConfigureAwait(false);
 
@@ -70,24 +71,25 @@ public static class SmtpServer12
 
                 bool needsFlush = false;
 
-                // Verarbeite alle im Buffer liegenden Zeilen
+                // Process all lines currently available in the buffer
                 while (TryReadLine(ref buffer, ref dataMode, writer, out bool shouldQuit, ref needsFlush))
                 {
                     if (shouldQuit)
                     {
-                        // Beim Beenden restliche Daten (z.B. QUIT-Antwort) flashen und raus
+                        // On exit, flush remaining data (e.g., QUIT response) and terminate
                         if (needsFlush) await writer.FlushAsync().ConfigureAwait(false);
                         return;
                     }
                 }
 
-                // Wenn während der Verarbeitung Antworten generiert wurden, jetzt gesammelt flashen!
-                // Das nennt sich "Smart Batching" und spart extrem viele Netzwerk-Syscalls.
+                // If responses were generated during processing, flush them collectively now!
+                // This is called "Smart Batching" and saves a massive amount of network syscalls.
                 if (needsFlush)
                 {
                     await writer.FlushAsync().ConfigureAwait(false);
                 }
 
+                // Notify the reader how far we have successfully processed (No buffer recopying needed!)
                 reader.AdvanceTo(buffer.Start, buffer.End);
 
                 if (result.IsCompleted || result.IsCanceled) break;
@@ -107,7 +109,7 @@ public static class SmtpServer12
     {
         shouldQuit = false;
 
-        // 1. DATA-Modus: Ende-Tag suchen
+        // 1. DATA Mode: Search for the end tag
         if (dataMode)
         {
             var seqReader = new SequenceReader<byte>(buffer);
@@ -115,11 +117,13 @@ public static class SmtpServer12
 
             while (!seqReader.End)
             {
+                // Jump directly to the next '\r' (Hardware accelerated)
                 if (seqReader.TryAdvanceTo((byte)'\r'))
                 {
+                    // Check directly within the current memory segment if the end tag matches
                     if (seqReader.UnreadSpan.StartsWith("\n.\r\n"u8))
                     {
-                        seqReader.Advance(4);
+                        seqReader.Advance(4); // Skip the rest of the tag (\n.\r\n)
                         foundSequence = true;
                         break;
                     }
@@ -134,11 +138,13 @@ public static class SmtpServer12
             {
                 dataMode = false;
                 writer.Write(RespDataOk);
-                needsFlush = true; // Signalisiert, dass Daten gesendet werden muessen
+                needsFlush = true; // Indicates that data needs to be sent
                 buffer = buffer.Slice(seqReader.Position);
                 return true;
             }
 
+            // If the end tag is not found, retain only the last 4 bytes in the buffer, 
+            // just in case the \r\n.\r\n gets sliced across a network packet boundary.
             if (buffer.Length > 4)
             {
                 buffer = buffer.Slice(buffer.GetPosition(buffer.Length - 4));
@@ -146,10 +152,11 @@ public static class SmtpServer12
             return false;
         }
 
-        // 2. Befehls-Modus (Zeilenweise parsen)
+        // 2. Command Mode (Parse line by line without string allocations)
         var commandReader = new SequenceReader<byte>(buffer);
         if (commandReader.TryReadTo(out ReadOnlySequence<byte> lineSequence, (byte)'\n'))
         {
+            // Extract the direct span (Single segment in 99% of cases, making this extremely cheap)
             ReadOnlySpan<byte> line = lineSequence.IsSingleSegment ? lineSequence.First.Span : lineSequence.ToArray();
 
             if (line.Length > 0 && line[^1] == (byte)'\r')
@@ -160,7 +167,7 @@ public static class SmtpServer12
             if (line.Length > 0)
             {
                 ProcessCommand(line, ref dataMode, writer, out shouldQuit);
-                needsFlush = true; // Signalisiert, dass eine Antwort im Buffer liegt
+                needsFlush = true; // Indicates that a response is pending in the buffer
             }
 
             buffer = buffer.Slice(commandReader.Position);
@@ -174,6 +181,7 @@ public static class SmtpServer12
     {
         shouldQuit = false;
 
+        // .NET heavily optimizes StartsWith with u8 literals using SIMD/vectorization
         if (line.StartsWith("EHLO"u8) || line.StartsWith("HELO"u8))
         {
             writer.Write(RespEhlo);
