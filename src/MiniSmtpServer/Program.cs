@@ -7,7 +7,6 @@ Console.WriteLine("Start Mini SMTP Server [Port:25]");
 var listener = new TcpListener(IPAddress.IPv6Any, 25);
 listener.Server.DualMode = true;
 listener.Start();
-listener.BeginAcceptTcpClient(OnAcceptConnection, listener);
 
 Console.WriteLine("Mini SMTP Server is ready");
 
@@ -19,85 +18,129 @@ Console.CancelKeyPress += (_, e) =>
     quit.Set();
 };
 
+_ = AcceptLoop(listener);
+
 quit.WaitOne();
 
 Console.WriteLine("Mini SMTP Server stopped");
 
-static void OnAcceptConnection(IAsyncResult asyn)
+static async Task AcceptLoop(TcpListener listener)
 {
-    if (asyn.AsyncState is not TcpListener listener)
+    while (true)
     {
-        return;
+        var client = await listener.AcceptTcpClientAsync();
+        _ = HandleClientAsync(client);
     }
+}
 
-    TcpClient client = listener.EndAcceptTcpClient(asyn);
-
-    _ = Task.Run(async () =>
+static async Task HandleClientAsync(TcpClient client)
+{
+    try
     {
         using var stream = client.GetStream();
-        using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
-        using var writer = new StreamWriter(stream, Encoding.ASCII, leaveOpen: true)
+
+        var buffer = new byte[8192];
+        int received = 0;
+
+        await WriteLine(stream, "220 localhost SMTP Ready");
+
+        while (true)
         {
-            NewLine = "\r\n",
-            AutoFlush = true
-        };
+            int read = await stream.ReadAsync(buffer.AsMemory(received));
+            if (read <= 0) break;
 
-        var data = new StringBuilder();
+            received += read;
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+            int lineStart = 0;
 
-        await writer.WriteLineAsync("220 localhost SMTP Ready");
-
-        while (client.Connected)
-        {
-            var line = await reader.ReadLineAsync();
-            if (line == null) break;
-
-            if (line.StartsWith("EHLO", StringComparison.OrdinalIgnoreCase) || line.StartsWith("HELO", StringComparison.OrdinalIgnoreCase))
+            for (int i = 0; i < received; i++)
             {
-                await writer.WriteLineAsync("250-localhost");
-                await writer.WriteLineAsync("250-PIPELINING");
-                await writer.WriteLineAsync("250 OK");
-            }
-            else if (line.StartsWith("NOOP", StringComparison.OrdinalIgnoreCase))
-            {
-                await writer.WriteLineAsync("250 OK");
-            }
-            else if (line.StartsWith("QUIT", StringComparison.OrdinalIgnoreCase))
-            {
-                await writer.WriteLineAsync("221 Bye");
-                break;
-            }
-            else if (line.StartsWith("MAIL FROM", StringComparison.OrdinalIgnoreCase) || line.StartsWith("RCPT TO", StringComparison.OrdinalIgnoreCase))
-            {
-                await writer.WriteLineAsync("250 OK");
-            }
-            else if (line.Equals("DATA", StringComparison.OrdinalIgnoreCase))
-            {
-                await writer.WriteLineAsync("354 End data with <CR><LF>.<CR><LF>");
+                if (buffer[i] != (byte)'\n')
+                    continue;
 
-                while (true)
-                {
-                    var dataLine = await reader.ReadLineAsync();
-                    if (dataLine == null || dataLine == ".")
-                        break;
+                var line = new ReadOnlySpan<byte>(buffer, lineStart, i - lineStart);
+                lineStart = i + 1;
 
-                    data.AppendLine(dataLine);
-                }
+                if (line.Length == 0)
+                    continue;
 
-                await writer.WriteLineAsync("250 OK Message accepted");
-            }
-            else
-            {
-                await writer.WriteLineAsync("250 OK");
+                if (line[^1] == (byte)'\r')
+                    line = line[..^1];
+
+                if (!ProcessCommand(line, stream))
+                    return;
             }
 
-            sw.Restart();
+            // shift remaining bytes (partial line)
+            if (lineStart > 0)
+            {
+                Buffer.BlockCopy(buffer, lineStart, buffer, 0, received - lineStart);
+                received -= lineStart;
+            }
         }
-
-        client.Close();
+    }
+    finally
+    {
         client.Dispose();
-    });
+    }
+}
 
-    listener.BeginAcceptTcpClient(OnAcceptConnection, listener);
+static bool ProcessCommand(ReadOnlySpan<byte> line, NetworkStream stream)
+{
+    if (StartsWith(line, "EHLO") || StartsWith(line, "HELO"))
+    {
+        _ = WriteLine(stream, "250-localhost");
+        _ = WriteLine(stream, "250-PIPELINING");
+        _ = WriteLine(stream, "250 OK");
+        return true;
+    }
+
+    if (StartsWith(line, "MAIL FROM") || StartsWith(line, "RCPT TO"))
+    {
+        _ = WriteLine(stream, "250 OK");
+        return true;
+    }
+
+    if (StartsWith(line, "NOOP"))
+    {
+        _ = WriteLine(stream, "250 OK");
+        return true;
+    }
+
+    if (StartsWith(line, "DATA"))
+    {
+        _ = WriteLine(stream, "354 End data with <CR><LF>.<CR><LF>");
+        return true;
+    }
+
+    if (StartsWith(line, "QUIT"))
+    {
+        _ = WriteLine(stream, "221 Bye");
+        return false;
+    }
+
+    _ = WriteLine(stream, "250 OK");
+    return true;
+}
+
+static bool StartsWith(ReadOnlySpan<byte> span, string value)
+{
+    var v = value.AsSpan();
+
+    if (span.Length < v.Length)
+        return false;
+
+    for (int i = 0; i < v.Length; i++)
+    {
+        if (char.ToUpperInvariant((char)span[i]) != char.ToUpperInvariant(v[i]))
+            return false;
+    }
+
+    return true;
+}
+
+static async Task WriteLine(NetworkStream stream, string text)
+{
+    var data = Encoding.ASCII.GetBytes(text + "\r\n");
+    await stream.WriteAsync(data);
 }
