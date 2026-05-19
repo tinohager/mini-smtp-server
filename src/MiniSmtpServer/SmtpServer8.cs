@@ -13,7 +13,7 @@ public static class SmtpServer8
 
     public static void Start()
     {
-        Console.WriteLine("SMTP Server8 (IOCP Batch Reactor)");
+        Console.WriteLine("SMTP Server8 running");
 
         _listener = new Socket(SocketType.Stream, ProtocolType.Tcp);
         _listener.Bind(new IPEndPoint(IPAddress.IPv6Any, 25));
@@ -28,11 +28,25 @@ public static class SmtpServer8
         {
             e.Cancel = true;
             _running = false;
-
             try { _listener.Close(); } catch { }
         };
 
         AcceptLoop();
+
+        RunLoop();
+    }
+
+    private static void RunLoop()
+    {
+        while (_running)
+        {
+            for (int i = 0; i < _reactors.Length; i++)
+            {
+                _reactors[i].Tick();
+            }
+
+            Thread.Sleep(1);
+        }
     }
 
     // =========================
