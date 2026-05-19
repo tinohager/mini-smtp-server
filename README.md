@@ -52,5 +52,27 @@ APIs, architecture, and internal implementation may change frequently as perform
 ## Testing
 
 ```bash
-docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 1
+
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 5
+
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 6
+
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 9
+
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 10
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 11
+docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 12
 ```
+
+## 📊 Performance Benchmarks
+
+| Version | Latency (ms) |
+|--------|-------------:|
+| V1     | 140 ms       |
+| V5     | 100 ms       |
+| V6     | 100 ms       |
+| V9     | 100 ms       |
+| V10    | 100 ms       |
+| V11    | 100 ms       |
+| V12    | 70 ms        |
