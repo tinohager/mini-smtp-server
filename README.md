@@ -67,6 +67,21 @@ docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 12
 
 ## 📊 Performance Benchmarks
 
+All benchmark measurements were performed using SMTP PIPELINING with a network latency of approximately **20 ms RTT (ping)**.
+
+SMTP PIPELINING significantly reduces the number of required network roundtrips by allowing multiple SMTP commands to be transmitted without waiting for individual server responses.
+
+Typical SMTP communication:
+
+| Mode | Estimated Roundtrips |
+|---|---|
+| Standard SMTP | ~5–6 RTT |
+| SMTP PIPELINING | ~2–3 RTT |
+
+Because the benchmarks were executed with PIPELINING enabled, the measured timings primarily reflect the internal processing performance of the SMTP server implementation rather than network latency overhead.
+
+### Results
+
 | Version | Latency (ms) |
 |--------|-------------:|
 | V1     | 140 ms       |
@@ -76,3 +91,5 @@ docker run -p 25:25 ghcr.io/tinohager/mini-smtp-server:latest 12
 | V10    | 100 ms       |
 | V11    | 100 ms       |
 | V12    | 70 ms        |
+
+The optimization work in V12 reduced the average processing time by approximately **50% compared to V1** under identical benchmark conditions.
