@@ -65,6 +65,22 @@ The SMTP server evolved through multiple iterations with a strong focus on reduc
 | **V11** | High-Perf Async Sockets | Native `SocketAsyncEventArgs` + UTF-8 literals (`"EHLO"u8`). |
 | **V12** | System.IO.Pipelines | **Ultimate Leap:** Zero-copy parsing via `SequenceReader<byte>` + Batch Flushing. |
 
+### Impact per Version (Latency / GC / Throughput)
+
+> Note: Measurements are based on a single-client sequential SMTP workload (mails sent one after another over ~20ms RTT connection with PIPELINING enabled).  
+> This primarily reflects **per-mail processing efficiency**, not high-concurrency scaling behavior.
+
+| Version | Latency Impact | GC Impact | Throughput Impact | Summary |
+| :--- | :--- | :--- | :--- | :--- |
+| **V1** | Baseline (140 ms) | High (StreamReader + string parsing) | Low | Simple baseline, heavy abstraction overhead |
+| **V5** | ↓ ~28–30% (100 ms) | Medium (no string-heavy Streams per connection) | Medium | Reactor model removes thread/Task overhead but still parsing-heavy |
+| **V6** | Stable (100 ms) | ↓ Significant (ArrayPool + pre-encoded responses) | Medium | Biggest gain: allocation reduction, GC pressure drops clearly |
+| **V9** | Stable (100 ms) | Medium-High (StreamReader reintroduced) | Medium | Simpler design, but loses low-level efficiency gains |
+| **V10** | Stable / slight ↓ | ↓ Medium (manual parsing + pooled buffers) | Medium-High | First real “zero-alloc direction”, better control over hot path |
+| **V11** | Stable / slight ↓ | ↓↓ (UTF-8 literals, fewer encodings, better socket usage) | High | Hot-path optimized async sockets, reduced CPU per command |
+| **V12** | ↓↓↓ (70 ms) | ↓↓↓ (near-zero allocations in hot path) | Very High | Pipelines + zero-copy + batching = best overall efficiency |
+
+
 ### Results
 
 | Version | Latency (ms) |
