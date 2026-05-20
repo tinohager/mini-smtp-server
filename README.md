@@ -1,5 +1,11 @@
 # 🚀 MiniSmtpServer
 
+> [!WARNING]
+> This project is currently highly experimental and **not stable for parallel or concurrent connections**.  
+> Unexpected behavior, race conditions, or connection issues may occur under load.  
+> It should currently be considered a proof of concept / experiment and **must not be used in production environments**.
+
+
 **A lightweight, ultra-fast SMTP server built with .NET, designed for maximum performance and minimal latency.**
 
 MiniSmtpServer is a high-performance SMTP implementation focused on speed, simplicity, and efficiency.  
