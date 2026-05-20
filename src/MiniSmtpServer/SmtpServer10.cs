@@ -7,6 +7,7 @@ public static class SmtpServer10
 {
     private static Socket _listener = null!;
     private static volatile bool _running;
+    private static readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
 
     public static void Start()
     {
@@ -22,6 +23,7 @@ public static class SmtpServer10
         {
             e.Cancel = true;
             _running = false;
+            _stopSignal.Set();
 
             try { _listener.Close(); } catch { }
         };
@@ -30,7 +32,7 @@ public static class SmtpServer10
 
         Console.WriteLine("SMTP ready");
 
-        Thread.Sleep(Timeout.Infinite);
+        _stopSignal.Wait();
     }
 
     // =========================
@@ -134,7 +136,7 @@ public static class SmtpServer10
         {
             Write(stream,
                 "250-localhost\r\n" +
-                "250 PIPELINING\r\n" +
+                "250-PIPELINING\r\n" +
                 "250 OK\r\n");
             return;
         }

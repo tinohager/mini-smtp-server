@@ -7,10 +7,11 @@ public static class SmtpServer12
 {
     private static Socket _listener = null!;
     private static volatile bool _running;
+    private static readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
 
     // Static pre-allocated responses kept in memory (Avoids any string/byte allocations in the hot path)
     private static readonly byte[] RespReady = "220 localhost ESMTP Service Ready\r\n"u8.ToArray();
-    private static readonly byte[] RespEhlo = "250-localhost\r\n250 PIPELINING\r\n250 OK\r\n"u8.ToArray();
+    private static readonly byte[] RespEhlo = "250-localhost\r\n250-PIPELINING\r\n250 OK\r\n"u8.ToArray();
     private static readonly byte[] RespOk = "250 OK\r\n"u8.ToArray();
     private static readonly byte[] RespDataStart = "354 End data with <CRLF>.<CRLF>\r\n"u8.ToArray();
     private static readonly byte[] RespDataOk = "250 OK Message accepted\r\n"u8.ToArray();
@@ -25,11 +26,20 @@ public static class SmtpServer12
         _listener.Listen(1024);
         _running = true;
 
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            _running = false;
+            _stopSignal.Set();
+
+            try { _listener.Close(); } catch { }
+        };
+
         _ = AcceptLoop();
 
         Console.WriteLine("SMTP ready");
 
-        Thread.Sleep(Timeout.Infinite);
+        _stopSignal.Wait();
     }
 
     private static async Task AcceptLoop()

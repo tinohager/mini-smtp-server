@@ -6,6 +6,7 @@ public static class SmtpServer11
 {
     private static Socket _listener = null!;
     private static volatile bool _running;
+    private static readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
 
     private static readonly byte[] RespReady = "220 localhost ESMTP Service Ready\r\n"u8.ToArray();
     private static readonly byte[] RespEhlo = "250-localhost\r\n250 PIPELINING\r\n250 OK\r\n"u8.ToArray();
@@ -23,9 +24,20 @@ public static class SmtpServer11
         _listener.Listen(1024);
         _running = true;
 
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            _running = false;
+            _stopSignal.Set();
+
+            try { _listener.Close(); } catch { }
+        };
+
         _ = AcceptLoop();
 
-        Thread.Sleep(Timeout.Infinite);
+        Console.WriteLine("SMTP ready");
+
+        _stopSignal.Wait();
     }
 
     private static async Task AcceptLoop()

@@ -85,7 +85,7 @@ public static class SmtpServer9
                         line.StartsWith("HELO", StringComparison.OrdinalIgnoreCase))
                     {
                         writer.WriteLine("250-localhost");
-                        writer.WriteLine("250 PIPELINING");
+                        writer.WriteLine("250-PIPELINING");
                         writer.WriteLine("250 OK");
                     }
                     else if (line.StartsWith("MAIL FROM", StringComparison.OrdinalIgnoreCase) ||
