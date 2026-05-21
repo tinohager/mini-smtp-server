@@ -150,7 +150,7 @@ public static class SmtpServer5
         {
             if (Starts(line, "EHLO") || Starts(line, "HELO"))
             {
-                Send("250-localhost\r\n250 PIPELINING\r\n250 OK\r\n");
+                Send("250-localhost\r\n250-PIPELINING\r\n250 OK\r\n");
                 return true;
             }
 

@@ -9,7 +9,7 @@ public static class SmtpServer11
     private static readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
 
     private static readonly byte[] RespReady = "220 localhost ESMTP Service Ready\r\n"u8.ToArray();
-    private static readonly byte[] RespEhlo = "250-localhost\r\n250 PIPELINING\r\n250 OK\r\n"u8.ToArray();
+    private static readonly byte[] RespEhlo = "250-localhost\r\n250-PIPELINING\r\n250 OK\r\n"u8.ToArray();
     private static readonly byte[] RespOk = "250 OK\r\n"u8.ToArray();
     private static readonly byte[] RespDataStart = "354 End data with <CRLF>.<CRLF>\r\n"u8.ToArray();
     private static readonly byte[] RespDataOk = "250 OK Message accepted\r\n"u8.ToArray();

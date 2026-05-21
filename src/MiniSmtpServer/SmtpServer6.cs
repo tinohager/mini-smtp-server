@@ -13,7 +13,7 @@ public static class SmtpServer6
     // PRE-ENCODED RESPONSES (NO ALLOCATION IN HOT PATH)
     private static readonly byte[] R_220 = Encoding.ASCII.GetBytes("220 localhost SMTP Ready\r\n");
     private static readonly byte[] R_250 = Encoding.ASCII.GetBytes("250 OK\r\n");
-    private static readonly byte[] R_250_PIPE = Encoding.ASCII.GetBytes("250-localhost\r\n250 PIPELINING\r\n250 OK\r\n");
+    private static readonly byte[] R_250_PIPE = Encoding.ASCII.GetBytes("250-localhost\r\n250-PIPELINING\r\n250 OK\r\n");
     private static readonly byte[] R_354 = Encoding.ASCII.GetBytes("354 End data\r\n");
     private static readonly byte[] R_221 = Encoding.ASCII.GetBytes("221 Bye\r\n");
 

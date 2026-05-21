@@ -173,7 +173,7 @@ public static class SmtpServer8
         {
             if (Starts(line, "EHLO") || Starts(line, "HELO"))
             {
-                SendStatic("250-localhost\r\n250 PIPELINING\r\n250 OK\r\n");
+                SendStatic("250-localhost\r\n250-PIPELINING\r\n250 OK\r\n");
                 return true;
             }
 
